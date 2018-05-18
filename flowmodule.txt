@@ -1,0 +1,128 @@
+Flow description:
+
+1. if __name__ == "__main__"  
+
+On the first step we will gather all parameters :
+-o output file . This value 'test.txt' by default
+-z zipcode 
+-q quiet value (True/False). This value 'False' by default
+	arguments = docopt(__doc__, version='Intelligence QA 1.0')
+    	out_file = arguments.get('-o', 'test.txt')
+    	zipcode = arguments.get('-z')
+    	quiet = arguments.get('-q', False)
+
+Create object of class Intelligence and initialize the object with parameters: out_file, zip code and quiet 
+	intelligence = Intelligence(out_file, zipcode, quiet)
+
+
+
+method start will start thread activity. start() method comes from the threading.Thread class and this method will invoke run() method which overwritten in the Intelligence class
+	intelligence.start()
+
+
+
+Will block main(parent) process and wait until the thread terminates
+	intelligence.join()
+
+
+
+
+
+2. class Intelligence(threading.Thread)
+This is a class definition. Class 'Intelligence' inherited from the base class 'Thread' from module threading 
+(Resolving namespace : threading.Thread)
+
+ 
+(1)	def __init__(self, out_file, zipcode, quiet) - Class have overwritten initializer __init__ 
+
+		initializer of base class 'Thread' works first:
+			threading.Thread.__init__(self)
+	
+		Initialization of instance variables. self.iter - will be use in the main cycle in 'def run(self)' method. Initially equals 'True', and will be 		changed if SIGINT or SIGTERM signals caught or we have invalid zipcode.
+			self.zipcode = zipcode
+			self.out_file = out_file
+        		self.quiet = quiet
+        		self.f = open(self.out_file, "w") // open file 'out_file', self.f will contain file object
+        		self.iter = True
+
+		Set up signal handler to catch SIGINT(ctrl+c command) and SIGTERM(kill command) signals.
+		If event occurs and signal caught then method 'exit_gracefully' will be invoked
+			signal.signal(signal.SIGINT, self.exit_gracefully)
+        		signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+
+(2)	def run(self) - Overwritten method. This method will be invoked when Intelligence object starts : intelligence.start()
+	This method have infinity loop 'while self.iter:' and will execute all operations in the loop until we catch SIGINT or SIGTERM signals
+	I added try except blocks to maintain KeyError and ValueError (Ex: wrong zip code, writing to the closed file)
+
+	Main loop:
+	
+		run the function 'getWeatherData' and keep returned value(in this case dictionary) in the variable 'response'
+			response = getWeatherData(self.zipcode)
+	
+		initialize variables 'cloud', 'temp', 'sunrise', 'sunset' and 'visibility'. 
+			cloud = response['clouds']['all']
+                	temp = response['main']['temp']
+                	sunrise = datetime.datetime.fromtimestamp(response['sys']['sunrise'])
+                	sunset = datetime.datetime.fromtimestamp(response['sys']['sunset'])
+                	visibility = response['visibility']
+
+		Getting current time:
+			currentTime = datetime.datetime.now()
+	
+		Writing information(time, temperature, sunrise time, sunset time) to the file if self.quiet is False:
+			if not self.quiet:
+                   		self.f.write("Current time : {} \n".format(str(((currentTime)).time())))
+                    		self.f.write("Temp : {} \n".format( str(temp)))
+                    		self.f.write("Sunrise : {} \n".format(str(sunrise)))
+                    		self.f.write("Sunset : {} \n".format(str(sunset)))
+	
+
+		Calculating tint depending from the parameters time, cloud, temp, visibility, sunset and sunrise
+		I've changed the logic:
+			if it is dark outside currentTime.time().hour < sunrise.hour or currentTime.time().hour > sunset.hour , then 'tint' set up to 1
+			else it is a sun outside and we need to figure out the weather conditions.
+			if we have clouds and pour visibility  cloud > 40 or visibility < 3000 , then set up 'tint' to 2
+			otherwise we will take into account temperature.
+		
+		
+				selectedTint = 1   
+                		if (currentTime.time().hour < sunrise.hour or currentTime.time().hour > sunset.hour):
+                    			selectedTint = 1
+                		elif cloud > 40 or visibility < 3000:
+                    			selectedTint = 2
+                		elif cloud < 40 or visibility > 3000:
+                    			if temp > 80:
+                        			selectedTint = 4
+                    			elif temp > 65:
+                        			selectedTint = 3
+                    			else:
+                    				selectedTint = 2
+
+
+		Print out selected tint to the stdout
+				msg = " Selected Tint : {}\n".format(selectedTint)
+				print (msg)
+	
+		Writing tint information to the file:
+				self.f.write(msg)
+	
+		Wait 2 seconds until next cycle iteration:
+				time.sleep(2)
+	
+(3)	def exit_gracefully(self, signum, frame) - Class method, will invoked when signal SIGINT or SIGTERM caught.
+	
+		self.iter = False - I set up self.iter to False to get out from the infinity loop in the 'def run(self)' method.
+
+
+		print("Process being terminated \n") - will print out to the stdout that we are terminating the process
+
+
+		if self.f is not None:
+            		print("Closing output file handle: {}\n".format(self.out_file))
+            		self.f.close()
+		- Closing file if it open and printing out the message 'Closing output file handle: filename' to the stdout
+
+		 
+		sys.exit(0) - will raise SystemExit exception. Don't exit from the thread.
+		 
