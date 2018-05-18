@@ -23,9 +23,7 @@ def utc2local(utc):
 
 
 def getWeatherData(zipcode):
-    url = 'http://api.openweathermap.org/data/2.5/weather?zip={},\
-    us&APPID=3cf4cd87d12e4025c0636ed5097aef1e&units=imperial'.format(
-        zipcode)
+    url = 'http://api.openweathermap.org/data/2.5/weather?zip={},us&APPID=3cf4cd87d12e4025c0636ed5097aef1e&units=imperial'.format(zipcode)
     r = requests.get(url)
     return r.json()
 
